@@ -12,15 +12,18 @@ class OrderService
 {
     private BalanceService $balanceService;
     private AssetService $assetService;
+    private MatchingEngine $matchingEngine;
 
-    public function __construct(BalanceService $balanceService, AssetService $assetService)
+    public function __construct(BalanceService $balanceService, AssetService $assetService, MatchingEngine $matchingEngine)
     {
         $this->balanceService = $balanceService;
         $this->assetService = $assetService;
+        $this->matchingEngine = $matchingEngine;
     }
 
     /**
      * Create a new order with validation and fund locking.
+     * Automatically attempts to match the order with existing counter-orders.
      */
     public function createOrder(int $userId, string $symbol, string $side, string $price, string $amount): Order
     {
@@ -61,7 +64,10 @@ class OrderService
                 'status' => Order::STATUS_OPEN
             ]);
 
-            return $order;
+            // Attempt to match the order with existing counter-orders
+            $this->matchingEngine->processNewOrder($order);
+
+            return $order->fresh();
         });
     }
 
