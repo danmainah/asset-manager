@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { profileAPI, orderAPI } from '../services/api'
 import { initializePusher, subscribeToOrderMatched, disconnectPusher } from '../services/realtime'
 import OrderForm from './OrderForm.vue'
@@ -15,6 +15,7 @@ const loading = ref(false)
 const error = ref(null)
 const refreshInterval = ref(null)
 const notification = ref(null)
+const pusherInitialized = ref(false)
 
 const symbols = ['BTC', 'ETH']
 
@@ -65,11 +66,24 @@ async function handleOrderCancelled() {
 }
 
 function handleOrderMatched(data) {
-  notification.value = `Order matched! New balance: $${data.balance}`
-  loadProfile()
+  // Update profile with new balance and assets from the event
+  if (data.user_balance !== undefined && profile.value) {
+    profile.value.balance = data.user_balance
+  }
+
+  if (data.user_assets && profile.value) {
+    profile.value.assets = data.user_assets
+  }
+
+  // Show notification with trade details
+  const tradeInfo = data.trade
+  notification.value = `Order matched! ${tradeInfo.symbol} at $${parseFloat(tradeInfo.price).toFixed(8)}`
+
+  // Reload orders and orderbook to reflect the matched order
   loadOrders()
   loadOrderbook()
 
+  // Clear notification after 5 seconds
   setTimeout(() => {
     notification.value = null
   }, 5000)
@@ -88,22 +102,43 @@ function stopAutoRefresh() {
   }
 }
 
-onMounted(() => {
-  loadProfile()
-  loadOrders()
-  loadOrderbook()
+function initializeRealtime() {
+  if (profile.value?.user?.id && !pusherInitialized.value) {
+    try {
+      initializePusher(profile.value.user.id)
+      subscribeToOrderMatched(handleOrderMatched)
+      pusherInitialized.value = true
+      console.log('Real-time updates initialized')
+    } catch (err) {
+      console.error('Failed to initialize real-time updates:', err)
+    }
+  }
+}
+
+// Watch for profile changes to initialize Pusher when user data is available
+watch(
+  () => profile.value?.user?.id,
+  (userId) => {
+    if (userId && !pusherInitialized.value) {
+      initializeRealtime()
+    }
+  }
+)
+
+onMounted(async () => {
+  await loadProfile()
+  await loadOrders()
+  await loadOrderbook()
   startAutoRefresh()
 
-  // Initialize real-time updates
-  if (profile.value?.user?.id) {
-    initializePusher(profile.value.user.id)
-    subscribeToOrderMatched(handleOrderMatched)
-  }
+  // Initialize real-time updates after profile is loaded
+  initializeRealtime()
 })
 
 onUnmounted(() => {
   stopAutoRefresh()
   disconnectPusher()
+  pusherInitialized.value = false
 })
 </script>
 
