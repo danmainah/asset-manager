@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\Asset;
+use App\Models\AuditLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -61,7 +62,22 @@ class OrderService
                 'side' => $side,
                 'price' => $price,
                 'amount' => $amount,
-                'status' => Order::STATUS_OPEN
+            'status' => Order::STATUS_OPEN
+            ]);
+
+            // Audit log
+            AuditLog::create([
+                'user_id' => $userId,
+                'action' => 'ORDER_CREATED',
+                'entity_type' => Order::class,
+                'entity_id' => $order->id,
+                'details' => [
+                    'symbol' => $symbol,
+                    'side' => $side,
+                    'price' => $price,
+                    'amount' => $amount,
+                ],
+                'ip_address' => request()->ip(),
             ]);
 
             // Attempt to match the order with existing counter-orders
@@ -117,6 +133,20 @@ class OrderService
             // Update order status to cancelled
             $order->update([
                 'status' => Order::STATUS_CANCELLED
+            ]);
+
+            // Audit log
+            AuditLog::create([
+                'user_id' => $userId,
+                'action' => 'ORDER_CANCELLED',
+                'entity_type' => Order::class,
+                'entity_id' => $order->id,
+                'details' => [
+                    'symbol' => $order->symbol,
+                    'price' => $order->price,
+                    'amount' => $order->amount,
+                ],
+                'ip_address' => request()->ip(),
             ]);
 
             return $order;

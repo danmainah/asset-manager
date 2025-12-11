@@ -7,6 +7,7 @@ use App\Services\MatchingEngine;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
@@ -65,6 +66,7 @@ class OrderController extends Controller
                 'messages' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            Log::error('Order creation failed: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json([
                 'error' => 'Failed to create order',
                 'message' => $e->getMessage(),
@@ -94,6 +96,7 @@ class OrderController extends Controller
                 'messages' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            Log::error('Orderbook retrieval failed: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Failed to retrieve orderbook',
                 'message' => $e->getMessage(),
@@ -128,6 +131,7 @@ class OrderController extends Controller
                 'messages' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            Log::error('User orders retrieval failed: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Failed to retrieve orders',
                 'message' => $e->getMessage(),
@@ -166,6 +170,7 @@ class OrderController extends Controller
                 'messages' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            Log::error('Order cancellation failed: ' . $e->getMessage(), ['order_id' => $orderId]);
             return response()->json([
                 'error' => 'Failed to cancel order',
                 'message' => $e->getMessage(),
@@ -217,6 +222,7 @@ class OrderController extends Controller
                 'messages' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            Log::error('Order matching failed: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Failed to process matching',
                 'message' => $e->getMessage(),

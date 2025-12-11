@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\Trade;
+use App\Models\AuditLog;
 use App\Events\OrderMatched;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -159,6 +160,39 @@ class MatchingEngine
                 'amount' => $matchAmount,
                 'volume' => $volume,
                 'commission' => $commission,
+            ]);
+
+            // Audit log for buyer
+            AuditLog::create([
+                'user_id' => $buyOrder->user_id,
+                'action' => 'TRADE_EXECUTED_BUY',
+                'entity_type' => Trade::class,
+                'entity_id' => $trade->id,
+                'details' => [
+                    'order_id' => $buyOrder->id,
+                    'symbol' => $buyOrder->symbol,
+                    'price' => $matchPrice,
+                    'amount' => $matchAmount,
+                    'volume' => $volume,
+                    'commission' => $commission,
+                ],
+                'ip_address' => request()->ip(),
+            ]);
+
+            // Audit log for seller
+            AuditLog::create([
+                'user_id' => $sellOrder->user_id,
+                'action' => 'TRADE_EXECUTED_SELL',
+                'entity_type' => Trade::class,
+                'entity_id' => $trade->id,
+                'details' => [
+                    'order_id' => $sellOrder->id,
+                    'symbol' => $sellOrder->symbol,
+                    'price' => $matchPrice,
+                    'amount' => $matchAmount,
+                    'volume' => $volume,
+                ],
+                'ip_address' => request()->ip(),
             ]);
 
             return $trade;
