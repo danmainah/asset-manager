@@ -27,7 +27,9 @@ vi.mock('pusher-js', () => {
   }
 
   return {
-    default: vi.fn(() => mockPusher),
+    default: vi.fn(function() {
+      return mockPusher
+    }),
   }
 })
 
