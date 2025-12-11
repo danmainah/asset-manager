@@ -2,28 +2,23 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\OrderController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/profile', function (Request $request) {
-        return response()->json([
-            'user' => $request->user(),
-            'balance' => $request->user()->balance,
-            'assets' => $request->user()->assets,
-        ]);
-    });
+    // Profile endpoints
+    Route::get('/profile', [ProfileController::class, 'show']);
     
-    Route::get('/orders', function (Request $request) {
-        return response()->json([
-            'orders' => $request->user()->orders,
-        ]);
-    });
-    
-    Route::post('/orders', function (Request $request) {
-        // This will be implemented later
-        return response()->json(['message' => 'Order creation endpoint']);
-    });
+    // Order endpoints
+    Route::get('/orders', [OrderController::class, 'index']);
+    Route::post('/orders', [OrderController::class, 'store']);
+    Route::post('/orders/{orderId}/cancel', [OrderController::class, 'cancel']);
+    Route::get('/orderbook', [OrderController::class, 'getOrderbook']);
 });
+
+// Internal matching endpoint (should be protected by internal-only middleware in production)
+Route::post('/orders/match', [OrderController::class, 'match']);
