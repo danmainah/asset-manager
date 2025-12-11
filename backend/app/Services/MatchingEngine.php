@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\Trade;
+use App\Events\OrderMatched;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -164,6 +165,32 @@ class MatchingEngine
         } catch (\Exception $e) {
             // Transaction will be rolled back automatically
             throw $e;
+        }
+    }
+
+    /**
+     * Broadcast order matched event to both trading parties.
+     * Called after successful trade execution.
+     */
+    public function broadcastOrderMatched(Trade $trade): void
+    {
+        try {
+            // Broadcast to buyer
+            $buyer = $trade->buyer;
+            $buyerBalance = ['usd_balance' => $buyer->balance];
+            $buyerAssets = $this->assetService->getUserAssets($buyer->id);
+            
+            broadcast(new OrderMatched($trade, $buyer, $buyerBalance, $buyerAssets))->toOthers();
+
+            // Broadcast to seller
+            $seller = $trade->seller;
+            $sellerBalance = ['usd_balance' => $seller->balance];
+            $sellerAssets = $this->assetService->getUserAssets($seller->id);
+            
+            broadcast(new OrderMatched($trade, $seller, $sellerBalance, $sellerAssets))->toOthers();
+        } catch (\Exception $e) {
+            // Log the error but don't fail the trade execution
+            \Log::warning('Failed to broadcast OrderMatched event: ' . $e->getMessage());
         }
     }
 

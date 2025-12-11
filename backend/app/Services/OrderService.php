@@ -65,7 +65,12 @@ class OrderService
             ]);
 
             // Attempt to match the order with existing counter-orders
-            $this->matchingEngine->processNewOrder($order);
+            $trade = $this->matchingEngine->processNewOrder($order);
+
+            // Broadcast order matched event if a trade was executed
+            if ($trade) {
+                $this->matchingEngine->broadcastOrderMatched($trade);
+            }
 
             return $order->fresh();
         });

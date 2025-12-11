@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Services\OrderService;
 use App\Services\BalanceService;
 use App\Services\AssetService;
+use App\Services\MatchingEngine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -18,13 +19,15 @@ class OrderCancellationUnlockingTest extends TestCase
     private OrderService $orderService;
     private BalanceService $balanceService;
     private AssetService $assetService;
+    private MatchingEngine $matchingEngine;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->balanceService = new BalanceService();
         $this->assetService = new AssetService();
-        $this->orderService = new OrderService($this->balanceService, $this->assetService);
+        $this->matchingEngine = new MatchingEngine($this->balanceService, $this->assetService);
+        $this->orderService = new OrderService($this->balanceService, $this->assetService, $this->matchingEngine);
     }
 
     /**
