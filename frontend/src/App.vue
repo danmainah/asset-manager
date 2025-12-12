@@ -1,9 +1,9 @@
 <script setup>
-import TradingInterface from './components/TradingInterface.vue'
+// Router handles navigation
 </script>
 
 <template>
-  <TradingInterface />
+  <router-view />
 </template>
 
 <style>
@@ -17,3 +17,4 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 </style>
+

@@ -11,6 +11,11 @@ export function getAuthToken() {
   return authToken;
 }
 
+export function clearAuthToken() {
+  authToken = null;
+  localStorage.removeItem('auth_token');
+}
+
 async function apiCall(endpoint, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -28,11 +33,57 @@ async function apiCall(endpoint, options = {}) {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || `API error: ${response.status}`);
+
+    // Handle validation errors (422)
+    if (response.status === 422 && error.messages) {
+      // Extract all validation error messages
+      const messages = Object.values(error.messages).flat();
+      throw new Error(messages.join(', '));
+    }
+
+    // Handle other errors
+    throw new Error(error.message || error.error || `API error: ${response.status}`);
   }
 
   return response.json();
 }
+
+// Authentication API
+export const authAPI = {
+  async login(email, password) {
+    const response = await apiCall('/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    if (response.token) {
+      setAuthToken(response.token);
+    }
+    return response;
+  },
+
+  async register(name, email, password, password_confirmation) {
+    const response = await apiCall('/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password, password_confirmation }),
+    });
+    if (response.token) {
+      setAuthToken(response.token);
+    }
+    return response;
+  },
+
+  async logout() {
+    try {
+      await apiCall('/logout', { method: 'POST' });
+    } finally {
+      clearAuthToken();
+    }
+  },
+
+  async getCurrentUser() {
+    return apiCall('/me');
+  },
+};
 
 export const profileAPI = {
   getProfile() {
@@ -55,7 +106,9 @@ export const orderAPI = {
   },
 
   getOrderbook(symbol) {
-    return apiCall(`/orderbook?symbol=${symbol}`);
+    const params = new URLSearchParams();
+    if (symbol && symbol !== 'null') params.append('symbol', symbol);
+    return apiCall(`/orderbook?${params.toString()}`);
   },
 
   cancelOrder(orderId) {

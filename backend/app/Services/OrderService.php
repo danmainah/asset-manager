@@ -156,19 +156,29 @@ class OrderService
     /**
      * Get orderbook for a specific symbol with proper sorting.
      */
-    public function getOrderbook(string $symbol): array
+    public function getOrderbook(?string $symbol = null): array
     {
-        $symbol = strtoupper($symbol);
-
-        // Validate symbol
-        Asset::validateSymbol($symbol);
-
-        // Get all open buy orders sorted by price descending
-        $buyOrders = Order::where('symbol', $symbol)
-            ->where('side', 'buy')
+        // Base query for buy orders
+        $buyQuery = Order::where('side', 'buy')
             ->where('status', Order::STATUS_OPEN)
-            ->orderBy('price', 'desc')
-            ->get()
+            ->orderBy('price', 'desc');
+
+        // Base query for sell orders
+        $sellQuery = Order::where('side', 'sell')
+            ->where('status', Order::STATUS_OPEN)
+            ->orderBy('price', 'asc');
+
+        // Apply symbol filter if provided
+        if ($symbol) {
+            $symbol = strtoupper($symbol);
+            Asset::validateSymbol($symbol);
+            
+            $buyQuery->where('symbol', $symbol);
+            $sellQuery->where('symbol', $symbol);
+        }
+
+        // Get buy orders
+        $buyOrders = $buyQuery->get()
             ->map(function ($order) {
                 return [
                     'id' => $order->id,
@@ -183,12 +193,8 @@ class OrderService
             })
             ->toArray();
 
-        // Get all open sell orders sorted by price ascending
-        $sellOrders = Order::where('symbol', $symbol)
-            ->where('side', 'sell')
-            ->where('status', Order::STATUS_OPEN)
-            ->orderBy('price', 'asc')
-            ->get()
+        // Get sell orders
+        $sellOrders = $sellQuery->get()
             ->map(function ($order) {
                 return [
                     'id' => $order->id,
@@ -204,7 +210,7 @@ class OrderService
             ->toArray();
 
         return [
-            'symbol' => $symbol,
+            'symbol' => $symbol ?? 'All Assets',
             'buy_orders' => $buyOrders,
             'sell_orders' => $sellOrders
         ];
@@ -236,13 +242,19 @@ class OrderService
         return $query->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($order) {
+                $statusMap = [
+                    Order::STATUS_OPEN => 'open',
+                    Order::STATUS_FILLED => 'filled',
+                    Order::STATUS_CANCELLED => 'cancelled'
+                ];
+                
                 return [
                     'id' => $order->id,
                     'symbol' => $order->symbol,
                     'side' => $order->side,
                     'price' => $order->price,
                     'amount' => $order->amount,
-                    'status' => $order->status,
+                    'status' => $statusMap[$order->status] ?? 'unknown',
                     'created_at' => $order->created_at,
                     'updated_at' => $order->updated_at
                 ];

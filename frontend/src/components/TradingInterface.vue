@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { profileAPI, orderAPI } from '../services/api'
 import { initializePusher, subscribeToOrderMatched, disconnectPusher } from '../services/realtime'
 import OrderForm from './OrderForm.vue'
@@ -9,9 +9,10 @@ import OrderbookDisplay from './OrderbookDisplay.vue'
 
 const profile = ref(null)
 const orders = ref([])
-const orderbook = ref({ buy: [], sell: [] })
+const orderbook = ref({ buy_orders: [], sell_orders: [] })
 const selectedSymbol = ref('BTC')
-const loading = ref(false)
+const initialLoading = ref(true) // Only show loading spinner on first load
+const orderbookLoading = ref(false)
 const error = ref(null)
 const refreshInterval = ref(null)
 const notification = ref(null)
@@ -19,24 +20,25 @@ const pusherInitialized = ref(false)
 
 const symbols = ['BTC', 'ETH']
 
-const filteredOrders = computed(() => {
-  return orders.value.filter(order => order.symbol === selectedSymbol.value)
-})
-
-async function loadProfile() {
+async function loadProfile(showLoading = false) {
   try {
-    loading.value = true
+    if (showLoading) {
+      initialLoading.value = true
+    }
     error.value = null
     profile.value = await profileAPI.getProfile()
   } catch (err) {
     error.value = err.message
   } finally {
-    loading.value = false
+    if (showLoading) {
+      initialLoading.value = false
+    }
   }
 }
 
 async function loadOrders() {
   try {
+    error.value = null
     const response = await orderAPI.getOrders()
     orders.value = response.orders || []
   } catch (err) {
@@ -44,12 +46,21 @@ async function loadOrders() {
   }
 }
 
-async function loadOrderbook() {
+async function loadOrderbook(background = false) {
   try {
-    const response = await orderAPI.getOrderbook(selectedSymbol.value)
+    if (!background) {
+      orderbookLoading.value = true
+    }
+    error.value = null
+    // Pass nothing to fetch all orders
+    const response = await orderAPI.getOrderbook()
     orderbook.value = response
   } catch (err) {
     error.value = err.message
+  } finally {
+    if (!background) {
+      orderbookLoading.value = false
+    }
   }
 }
 
@@ -89,19 +100,6 @@ function handleOrderMatched(data) {
   }, 5000)
 }
 
-function startAutoRefresh() {
-  refreshInterval.value = setInterval(async () => {
-    await loadProfile()
-    await loadOrderbook()
-  }, 5000)
-}
-
-function stopAutoRefresh() {
-  if (refreshInterval.value) {
-    clearInterval(refreshInterval.value)
-  }
-}
-
 function initializeRealtime() {
   if (profile.value?.user?.id && !pusherInitialized.value) {
     try {
@@ -126,52 +124,47 @@ watch(
 )
 
 onMounted(async () => {
-  await loadProfile()
+  // Show loading spinner only on initial load
+  await loadProfile(true)
   await loadOrders()
   await loadOrderbook()
-  startAutoRefresh()
 
   // Initialize real-time updates after profile is loaded
   initializeRealtime()
 })
 
 onUnmounted(() => {
-  stopAutoRefresh()
   disconnectPusher()
   pusherInitialized.value = false
 })
 </script>
 
 <template>
-  <div class="trading-interface min-h-screen bg-gray-50">
-    <!-- Header -->
-    <header class="bg-white shadow">
-      <div class="max-w-7xl mx-auto px-4 py-6">
-        <h1 class="text-3xl font-bold text-gray-900">Asset Manager Trading</h1>
-      </div>
-    </header>
-
+  <div class="trading-interface">
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 py-8">
+    <main class="content-wrapper">
       <!-- Notification Alert -->
-      <div v-if="notification" class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-        <p class="text-green-800">{{ notification }}</p>
+      <div v-if="notification" class="notification-alert">
+        <div class="notification-icon">✓</div>
+        <p>{{ notification }}</p>
       </div>
 
       <!-- Error Alert -->
-      <div v-if="error" class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-        <p class="text-red-800">{{ error }}</p>
+      <div v-if="error" class="error-alert">
+        <div class="error-icon">⚠️</div>
+        <p>{{ error }}</p>
       </div>
 
       <!-- Loading State -->
-      <div v-if="loading" class="text-center py-12">
-        <p class="text-gray-600">Loading...</p>
+      <div v-if="initialLoading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading...</p>
       </div>
 
       <!-- Main Grid -->
-      <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div v-else class="trading-grid">
         <!-- Left Column: Balance and Order Form -->
-        <div class="lg:col-span-1 space-y-6">
+        <div class="left-column">
           <!-- Balance Display -->
           <BalanceDisplay v-if="profile" :profile="profile" />
 
@@ -182,22 +175,23 @@ onUnmounted(() => {
             @order-created="handleOrderCreated"
             @symbol-changed="(symbol) => {
               selectedSymbol = symbol
-              loadOrderbook()
+              // No need to reload orderbook on symbol change as we now show all orders
             }"
           />
         </div>
 
         <!-- Right Column: Orderbook and Order History -->
-        <div class="lg:col-span-2 space-y-6">
+        <div class="right-column">
           <!-- Orderbook -->
           <OrderbookDisplay
             :symbol="selectedSymbol"
             :orderbook="orderbook"
+            :loading="orderbookLoading"
           />
 
           <!-- Order History -->
           <OrderHistory
-            :orders="filteredOrders"
+            :orders="orders"
             @order-cancelled="handleOrderCancelled"
           />
         </div>
@@ -209,5 +203,140 @@ onUnmounted(() => {
 <style scoped>
 .trading-interface {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  min-height: 100vh;
+}
+
+.content-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.notification-alert {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.15) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+  animation: slideDown 0.4s ease-out;
+}
+
+.notification-icon {
+  width: 32px;
+  height: 32px;
+  background: rgba(16, 185, 129, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.error-alert {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.15) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+  animation: shake 0.5s ease-in-out;
+}
+
+.error-icon {
+  width: 32px;
+  height: 32px;
+  background: rgba(239, 68, 68, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+.loading-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: white;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: white;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.trading-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 24px;
+}
+
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .trading-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .content-wrapper {
+    padding: 20px 16px;
+  }
 }
 </style>
+

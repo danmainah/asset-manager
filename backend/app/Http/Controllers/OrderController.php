@@ -56,7 +56,7 @@ class OrderController extends Controller
                     'side' => $order->side,
                     'price' => $order->price,
                     'amount' => $order->amount,
-                    'status' => $order->status,
+                    'status' => 'open',
                     'created_at' => $order->created_at,
                 ],
             ], 201);
@@ -82,12 +82,13 @@ class OrderController extends Controller
     public function getOrderbook(Request $request): JsonResponse
     {
         try {
-            // Validate request input
+            // Validate request input (symbol is now optional)
             $validated = $request->validate([
-                'symbol' => 'required|string|in:BTC,ETH',
+                'symbol' => 'nullable|string|in:BTC,ETH',
             ]);
 
-            $orderbook = $this->orderService->getOrderbook($validated['symbol']);
+            $symbol = $validated['symbol'] ?? null;
+            $orderbook = $this->orderService->getOrderbook($symbol);
 
             return response()->json($orderbook, 200);
         } catch (ValidationException $e) {
@@ -160,7 +161,7 @@ class OrderController extends Controller
                     'side' => $order->side,
                     'price' => $order->price,
                     'amount' => $order->amount,
-                    'status' => $order->status,
+                    'status' => 'cancelled',
                     'updated_at' => $order->updated_at,
                 ],
             ], 200);

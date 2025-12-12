@@ -64,6 +64,7 @@ async function cancelOrder(orderId) {
       <table class="w-full text-sm">
         <thead class="border-b border-gray-200">
           <tr>
+            <th class="text-left py-3 px-4 font-semibold text-gray-700">Symbol</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-700">Price</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-700">Amount</th>
@@ -74,6 +75,7 @@ async function cancelOrder(orderId) {
         </thead>
         <tbody>
           <tr v-for="order in orders" :key="order.id" class="border-b border-gray-100 hover:bg-gray-50">
+            <td class="py-3 px-4 font-medium">{{ order.symbol }}</td>
             <td class="py-3 px-4">
               <span :class="['font-medium', sideColors[order.side]]">
                 {{ order.side.toUpperCase() }}

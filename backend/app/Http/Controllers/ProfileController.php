@@ -29,8 +29,19 @@ class ProfileController extends Controller
         $userId = $user->id;
 
         try {
-            $balance = $this->balanceService->getUserBalance($userId);
-            $assets = $this->assetService->getUserAssets($userId);
+            $balanceData = $this->balanceService->getUserBalance($userId);
+            $assetsData = $this->assetService->getUserAssets($userId);
+
+            // Convert assets from object to array format
+            $assetsArray = [];
+            foreach ($assetsData as $symbol => $assetInfo) {
+                $assetsArray[] = [
+                    'symbol' => $symbol,
+                    'amount' => $assetInfo['available_amount'] ?? $assetInfo['total_amount'],
+                    'locked_amount' => $assetInfo['locked_amount'] ?? '0.00000000',
+                    'total_amount' => $assetInfo['total_amount'] ?? '0.00000000',
+                ];
+            }
 
             return response()->json([
                 'user' => [
@@ -38,8 +49,8 @@ class ProfileController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                 ],
-                'balance' => $balance,
-                'assets' => $assets,
+                'balance' => $balanceData['usd_balance'], // Direct balance value
+                'assets' => $assetsArray, // Array format
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
